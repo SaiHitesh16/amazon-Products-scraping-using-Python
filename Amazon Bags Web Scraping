@@ -106,10 +106,8 @@ if __name__ == '__main__':
   # opening our url file to access URLs
   main_df=pd.DataFrame(columns = ['ASIN','Manfacturer',"product_urls","product_name","product_price","product_rating","number_of_reviews"])
   for page in range(20):
-    print(page)
     Page_url="https://www.amazon.in/s?k=bags&page="+str(page)+"&crid=2M096C61O4MLT&qid=1679499573&sprefix=ba%2Caps%2C283&ref=sr_pg_"+str(page)
     Single_page=main(Page_url)
-    print(Page_url)
     main_df=main_df.append(Single_page, ignore_index = True)
     time.sleep(5)
   main_df.to_csv('file.csv')
