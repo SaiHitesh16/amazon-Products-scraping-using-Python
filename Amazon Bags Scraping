@@ -1,0 +1,115 @@
+!pip install beautifulsoup4
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import time 
+def main(URL):
+    d={}
+    HEADERS=({'User-Agent':'Browser details','Accept-Language':'en-US ,en;q=0.5'})
+ 
+    # Making the HTTP Request
+    webpage = requests.get(URL, headers=HEADERS)
+    time.sleep(2)#to stop requests not get blocked
+    # Creating the Soup Object containing all data
+    soup = BeautifulSoup(webpage.content, "html.parser")
+    
+    #To remove unnecessary spaces in ASIN,Manufacturer
+    def details(des):
+      l=[]
+      for x in des:
+        y=x.string
+        y=y.replace(" ",'')
+        y=y.replace("\n\u200f\n:\n\u200e\n",'')
+        y=y.split(" ")
+        if y!=[""]:l.extend(y)
+      return l
+
+    def box_method(prod_details):
+      m,a=0,0
+      asin,manufacturer="NA","NA"
+      for item in prod_details:
+        product_details = item.find("ul", {"class": "a-unordered-list a-nostyle a-vertical a-spacing-none detail-bullet-list"})
+        LEN=len(list(product_details))
+        for details_len in range(LEN//2):
+          all_details = item.find_all('span',attrs={'class':"a-list-item"})[details_len]
+          result_details=details(all_details)
+          if "Manufacturer" in result_details and m!=1:
+            manufacturer=''.join(result_details[1])
+            m+=1
+          if "ASIN" in result_details and a!=1:
+            asin=''.join(result_details[1])
+            a+=1
+          if m==1 and a==1:
+            break
+        return(asin,manufacturer)
+    def table_method(Soup_in_fn):
+      m,a=0,0
+      asin,manufacturer="NA","NA"
+      table=Soup_in_fn.find_all("th",{"class":"a-color-secondary a-size-base prodDetSectionEntry"})
+      additional=Soup_in_fn.find_all("th",{"class":"a-color-secondary a-size-base prodDetSectionEntry"})
+      for sec in table:
+        if "Manufacturer" in sec.string and m!=1:
+          manufacturer=''.join([s.string.strip() for s in  sec.find_next_siblings("td")])
+          m+=1
+      for sec in additional:
+        if "ASIN" in sec.string and a!=1:
+          asin=''.join([s.string.strip() for s in  sec.find_next_siblings("td")])
+          a+=1
+      return(asin,manufacturer)
+    # ASIN,Manufacturer
+    links=soup.find_all("a",attrs={'class':"a-link-normal s-underline-text s-underline-link-text s-link-style a-text-normal"})[:10]
+    product_urls_list=[]
+    for link in links:
+      product_url="https://amazon.in"+link.get('href')
+      d['product_urls']="".join(product_url)
+      prod_page = requests.get(product_url,headers=HEADERS)
+      Soup = BeautifulSoup(prod_page.content, "html.parser")
+      prod_details=Soup.find_all("div",attrs={'id':"detailBullets_feature_div"})
+      if prod_details==[]:
+        d['ASIN'],d['Manfacturer']=table_method(Soup)
+      else:
+       d['ASIN'],d['Manfacturer']=box_method(prod_details)
+
+    # Product names
+    product_name=list(soup.find_all("span",attrs={'class':"a-size-medium a-color-base a-text-normal"}))[:10]
+    p_name=[]
+    for i in product_name:
+      name=i.string
+      p_name.append(name.strip().replace(',', ''))
+    d["product_name"]=p_name
+    
+    #Product price
+    product_price=list(soup.find_all("span",attrs={'class':"a-price-whole"}))[:10]
+    price=[]
+    for i in product_price:
+      price.append(i.string)
+    d["product_price"]=price
+    
+    #Ratings
+    rating=list(soup.find_all("span",attrs={'class':"a-icon-alt"}))[:10]
+    p_rating=[]
+    for i in rating:
+      p_rating.append(i.string)
+    d["product_rating"]=p_rating
+    
+    #No.of reviews
+    number_of_reviews=list(soup.find_all("span",attrs={'class':"a-size-base s-underline-text"}))[:10]
+    review=[]
+    for i in number_of_reviews:
+      review.append(i.string.strip('()'))
+    d["number_of_reviews"]=review
+    df = pd.DataFrame(d)
+    #print(df)
+    return df
+ 
+if __name__ == '__main__':
+  # opening our url file to access URLs
+  main_df=pd.DataFrame(columns = ['ASIN','Manfacturer',"product_urls","product_name","product_price","product_rating","number_of_reviews"])
+  for page in range(20):
+    print(page)
+    Page_url="https://www.amazon.in/s?k=bags&page="+str(page)+"&crid=2M096C61O4MLT&qid=1679499573&sprefix=ba%2Caps%2C283&ref=sr_pg_"+str(page)
+    Single_page=main(Page_url)
+    print(Page_url)
+    main_df=main_df.append(Single_page, ignore_index = True)
+    time.sleep(5)
+  main_df.to_csv('file.csv')
